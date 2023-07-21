@@ -1,0 +1,89 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Recording Example</title>
+</head>
+<body>
+    <h1>Video Recording</h1>
+    <header>
+        <!-- Other header content -->
+        
+        <!-- Logout link -->
+        {% if user.is_authenticated %}
+            <a href="{% url 'logout' %}">Logout</a>
+        {% endif %}
+    </header>
+    <div id="recording-container">
+        <video id="preview" controls></video>
+        <button id="record-button">Start Recording</button>
+        <button id="stop-button">Stop Recording</button>
+    </div>
+    <p id="status-message"></p>
+    <form id="record-form" method="post">
+        {% csrf_token %}
+    </form>
+    <script>
+        var preview = document.getElementById('preview');
+        var recordButton = document.getElementById('record-button');
+        var stopButton = document.getElementById('stop-button');
+        var statusMessage = document.getElementById('status-message');
+        var stream, mediaRecorder, chunks = [];
+
+        recordButton.addEventListener('click', startRecording);
+        stopButton.addEventListener('click', stopRecording);
+
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+                .then(function (mediaStream) {
+                    stream = mediaStream;
+                    preview.srcObject = stream;
+                    preview.play();
+
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = function (event) {
+                        chunks.push(event.data);
+                    };
+
+                    mediaRecorder.start();
+                    recordButton.disabled = true;
+                    stopButton.disabled = false;
+                })
+                .catch(function (error) {
+                    console.log('Error accessing media devices: ', error);
+                });
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+            stream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+
+            mediaRecorder.onstop = function () {
+                var blob = new Blob(chunks, { 'type': 'video/webm' });
+                chunks = [];
+                var formData = new FormData(document.getElementById('record-form'));
+                formData.append('video', blob);
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '/record-video/', true);
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === 4 && xhr.status === 200) {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.status === 'success') {
+                            statusMessage.innerHTML = response.message;
+                        } else {
+                            statusMessage.innerHTML = 'Error: ' + response.message;
+                        }
+                    }
+                };
+                xhr.send(formData);
+            };
+
+            recordButton.disabled = false;
+            stopButton.disabled = true;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Questionnaire</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            background-color: #f5f5f5;
+          }
+          h1 {
+            margin-bottom: 20px;
+            color: #333;
+          }
+          header {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+          }
+          a {
+            color: #333;
+            text-decoration: none;
+            font-weight: bold;
+          }
+          a:hover {
+            color: #666;
+          }
+          #record-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+          #question {
+            margin-bottom: 30px;
+            color: #333;
+            font-weight: bold;
+          }
+          #radioButtonsContainer {
+            margin-bottom: 20px;
+            color: #333;
+          }
+          #radioButtonsContainer label {
+            margin-right: 10px;
+          }
+          #responseTextarea {
+            width: 300px;
+            height: 100px;
+            margin-top: 20px;
+            resize: none;
+            padding: 10px;
+          }
+          #submitButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+          }
+          #submitButton:hover {
+            background-color: #45a049;
+          }
+          #recording-container {
+            display: none;
+            margin-top: 20px;
+          }
+          #preview,
+          #audioPreview {
+            width: 300px;
+           
+            display: block;
+            margin: 10px auto;
+          }
+          #record-button,
+          #stop-button {
+            padding: 10px 20px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+          }
+          #stop-button {
+            background-color: #f44336;
+          }
+          #status-message {
+            margin-top: 20px;
+            color: #333;
+            font-weight: bold;
+          }
+    </style>
+  </head>
+  <body>
+    <h1>Record your answer here:</h1>
+    <header>
+      {% if user.is_authenticated %}
+      <a href="{% url 'logout' %}">Logout</a>
+      {% endif %}
+    </header>
+    <form id="record-form" method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div id="question"></div>
+      
+      <div id="radioButtonsContainer">
+        Choose any one mode to answer the question:
+        <br>
+        <label>
+            <input type="radio" name="mode-type" value="video">
+            Video
+        </label>
+        
+        <label>
+            <input type="radio" name="mode-type" value="audio">
+            Audio
+        </label>
+        </div>
+        <br>
+        <lable>Write your answer here also<lable><br>
+      <textarea id="responseTextarea" placeholder="Enter your answer" name="response_text"></textarea><br />
+       
+      <button id="submitButton" type="button">Submit</button>
+
+      <div id="recording-container" style="display: none">
+        <video id="preview" name="response_media" style="display: none" controls></video>
+        <audio id="audioPreview"  style="display: none" name="response_media" controls></audio>
+        <button id="record-button" type="button">Start Recording</button>
+        <button id="stop-button" type="button">Stop Recording</button>
+      </div>
+      <p id="status-message"></p>
+    </form>
+    <script>
+      // JavaScript code to fetch random question and handle user responses
+      const recordingContainer = document.getElementById("recording-container");
+      const recordButton = document.getElementById("record-button");
+      const stopButton = document.getElementById("stop-button");
+      const preview = document.getElementById("preview");
+      const statusMessage = document.getElementById("status-message");
+      const questionElement = document.getElementById("question");
+      const videoButton = document.getElementById("videoButton");
+      const audioButton = document.getElementById("audioButton");
+      const audioPreview = document.getElementById("audioPreview");
+      const responseTextarea = document.getElementById("responseTextarea");
+      const submitButton = document.getElementById("submitButton");
+      const radioButtonsContainer = document.getElementById('radioButtonsContainer');
+
+      var stream,
+        mediaRecorder,audioMediaRecorder,
+        chunks = [];
+      var question_id = null;
+
+      function fetchRandomQuestion() {
+        fetch("/random_question/")
+          .then((response) => response.json())
+          .then((data) => {
+            questionElement.innerText = data.question;
+            question_id = data.question_id
+          })
+          .catch((error) => {
+            console.log("Error fetching question:", error);
+          });
+      }
+
+      // Handle user response submission
+// Handle user response submission
+// Handle user response submission
+function submitResponse() {
+    const response = {
+      answer: responseTextarea.value,
+    };
+  
+    const selectedValue = document.querySelector('input[name="mode-type"]:checked').value;
+  
+    const formData = new FormData(document.getElementById("record-form"));
+    formData.append("response_text", response.answer);
+  
+    if (selectedValue === "video") {
+      const blob = new Blob(chunks, { type: "video/webm" });
+      formData.append("video", blob);
+    } else {
+      const blob = new Blob(chunks, { type: "audio/wav" });
+      formData.append("audio", blob);
+    }
+    chunks = [];
+  
+    formData.append("question_id", question_id);
+  
+    if (selectedValue === "video") {
+      formData.append("response_type", "video");
+    } else {
+      formData.append("response_type", "audio");
+    }
+  
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/submit_response/", true);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4 && xhr.status === 200) {
+        var response = JSON.parse(xhr.responseText);
+        if (response.status === "success") {
+          statusMessage.innerHTML = response.message;
+        } else {
+          statusMessage.innerHTML = "Error: " + response.message;
+        }
+      }
+    };
+    xhr.send(formData);
+  }
+
+  radioButtonsContainer.addEventListener('change', function(event) {
+        const selectedRadioButton = event.target;
+        const selectedValue = selectedRadioButton.value;
+      
+        if (selectedValue == 'audio')
+        { 
+            showAudioPreview();
+        }
+        else
+        {
+            showVideoPreview();
+        }
+        // Use the selected value as needed
+        console.log('Selected value:', selectedValue);
+      });
+  
+
+      // Show video recording preview
+      function showVideoPreview() {
+        recordingContainer.style.display = "block";
+        audioPreview.style.display = "none";
+        recordButton.style.display = "block";
+        stopButton.style.display = "block";
+        preview.style.display = "block";
+      }
+
+      // Start recording
+      function startRecordingVideo() {
+        navigator.mediaDevices
+          .getUserMedia({ audio: true, video: true })
+          .then(function (mediaStream) {
+            stream = mediaStream;
+            preview.srcObject = stream;
+            preview.play();
+
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = function (event) {
+              chunks.push(event.data);
+            };
+
+            mediaRecorder.start();
+            recordButton.disabled = true;
+            stopButton.disabled = false;
+          })
+          .catch(function (error) {
+            console.log("Error accessing media devices: ", error);
+          });
+      }
+
+      // Stop recording
+      function stopRecordingVideo() {
+        mediaRecorder.stop();
+        stream.getTracks().forEach(function (track) {
+          track.stop();
+        });
+
+        mediaRecorder.onstop = function () {
+          var blob = new Blob(chunks, { type: "video/webm" });
+          preview.srcObject = null;
+          preview.src = window.URL.createObjectURL(blob);
+          preview.controls = true;
+
+        };
+
+        recordButton.disabled = false;
+        stopButton.disabled = true;
+      }
+
+
+      function playVideo(blob) {
+        var videoURL = URL.createObjectURL(blob);
+        preview.src = videoURL;
+        preview.play();
+      }
+
+       function startMediaRecording(){
+          
+          var elements = document.querySelectorAll('[name="' + name + '"]');
+          var selectedValue = "";
+          for (var i = 0; i < elements.length; i++) {
+            if (elements[i].checked) {
+              selectedValue = elements[i].value;
+              break;
+            }
+          }
+          if(selectedValue == 'audio'){
+            startRecordingAudio();
+          }
+          else{
+            startRecordingVideo();
+          }
+          
+      } 
+
+
+      function stopMediaRecording(){
+        var elements = document.querySelectorAll('[name="' + name + '"]');
+        var selectedValue = "";
+        for (var i = 0; i < elements.length; i++) {
+          if (elements[i].checked) {
+            selectedValue = elements[i].value;
+            break;
+          }
+        }
+        if(selectedValue == 'audio'){
+          stopRecordingAudio();
+        }
+        else{
+          stopRecordingVideo();
+        }
+        
+      } 
+      recordButton.addEventListener("click", startMediaRecording);
+      stopButton.addEventListener("click", stopMediaRecording);
+
+      // Show audio recording preview
+      function showAudioPreview() {
+        recordingContainer.style.display = "block";
+        audioPreview.style.display = "block";
+        recordButton.style.display = "block";
+        stopButton.style.display = "block";
+        preview.style.display = "none";
+      }
+
+      // Start recording audio
+      function startRecordingAudio() {
+        
+        navigator.mediaDevices
+          .getUserMedia({ audio: true , video: false})
+          .then(function (mediaStream) {
+            stream = mediaStream;
+            audioPreview.srcObject = stream;
+            // audioPreview.play();
+
+            audioMediaRecorder = new MediaRecorder(stream);
+            audioMediaRecorder.ondataavailable = function (event) {
+              chunks.push(event.data);
+            };
+
+            audioMediaRecorder.start();
+            recordButton.disabled = true;
+            stopButton.disabled = false;
+            
+          })
+          .catch(function (error) {
+            console.log("Error accessing media devices: ", error);
+          });
+      }
+
+      // Stop recording audio
+      function stopRecordingAudio() {
+        audioMediaRecorder.stop();
+        stream.getTracks().forEach(function (track) {
+          track.stop();
+        });
+
+        audioMediaRecorder.onstop = function () {
+          var blob = new Blob(chunks, { type: "audio/wav" });
+          audioPreview.srcObject = null;
+          audioPreview.src = window.URL.createObjectURL(blob);
+          audioPreview.controls = true;
+
+        };
+
+        recordButton.disabled = false;
+        stopButton.disabled = true;
+      }
+
+      // Play recorded audio
+      function playAudio(blob) {
+        var audioURL = URL.createObjectURL(blob);
+        audioPreview.src = audioURL;
+        audioPreview.play();
+      }
+
+    
+      
+     
+      
+      
+      
+
+      submitButton.addEventListener("click", function () {
+        submitResponse();
+        
+      });
+
+      // Fetch the initial random question
+      fetchRandomQuestion();
+    </script>
+  </body>
+</html>

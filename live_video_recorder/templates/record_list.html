@@ -1,0 +1,64 @@
+{% load static %}
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Record List</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+   <h1>Record List</h1>
+   <header>
+    {% if user.is_authenticated %}
+    <a href="{% url 'logout' %}">Logout</a>
+    {% endif %}
+  </header>
+   <table>
+       <thead>
+           <tr>
+               <th>User</th>
+               <th>Question</th>
+               <th>Response Type</th>
+               <th>Response Text</th>
+               <th>Response Media</th>
+           </tr>
+       </thead>
+       <tbody>
+           {% for record in record_list %}
+               <tr>
+                   <td>{{ record.user }}</td>
+                   <td>{{ record.question }}</td>
+                   <td>{{ record.get_response_type_display }}</td>
+                   <td>{{ record.response_text }}</td>
+                   <td>
+                    {% if record.response_media %}
+                        <a href="{{ record.response_media.url }}" download>Download</a>
+                        
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+               </tr>
+           {% endfor %}
+       </tbody>
+   </table>
+</body>
+</html>
